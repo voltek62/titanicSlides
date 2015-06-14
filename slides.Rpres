@@ -1,0 +1,110 @@
+Titanic: Machine Learning from Disaster
+========================================================
+author: Vincent Terrasi
+date: 13/06/2015
+
+Predict survival on the Titanic 
+========================================================
+
+On April 15, 1912, during her maiden voyage, the Titanic sank after colliding with an iceberg, killing 1502 out of 2224 passengers and crew. This sensational tragedy shocked the international community and led to better safety regulations for ships.
+
+One of the reasons that the shipwreck led to such loss of life was that there were not enough lifeboats for the passengers and crew. Although there was some element of luck involved in surviving the sinking, some groups of people were more likely to survive than others, such as women, children, and the upper-class.
+
+I am going to apply the tools of machine learning to predict which passengers survived the tragedy.
+
+Variable Descriptions
+========================================================
+
+- survival | Survival (0 = No; 1 = Yes)
+- pclass   | Passenger Class (1 = 1st; 2 = 2nd; 3 = 3rd)
+- name     | Name
+- sex      | Sex
+- age      | Age
+- sibsp    | Number of Siblings/Spouses Aboard
+- parch    | Number of Parents/Children Aboard
+- ticket   | Ticket Number
+- fare     | Passenger Fare
+- cabin    | Cabin
+- embarked | Port of Embarkation (C = Cherbourg; Q = Queenstown; S = Southampton)
+
+Analyse Data
+========================================================
+
+```{r echo=FALSE}
+library(ggplot2)
+library(randomForest)
+library(C50)
+library(dplyr)
+set.seed(1)
+train <- read.csv("train.csv", stringsAsFactors=FALSE)
+test  <- read.csv("test.csv",  stringsAsFactors=FALSE)
+```
+
+```{r}
+extractFeatures <- function(data) {
+  features <- c("Pclass",
+                "Age",
+                "Sex",
+                "Parch",
+                "SibSp",
+                "Fare",
+                "Embarked")
+  fea <- data[,features]
+  fea$Age[is.na(fea$Age)] <- -1
+  fea$Fare[is.na(fea$Fare)] <- median(fea$Fare, na.rm=TRUE)
+  fea$Embarked[fea$Embarked==""] = "S"
+  fea$Sex      <- as.factor(fea$Sex)
+  fea$Embarked <- as.factor(fea$Embarked)
+  return(fea)
+}
+
+
+```
+
+Using Random Forest
+========================================================
+
+```{r, echo=FALSE}
+rf <- randomForest(extractFeatures(train), as.factor(train$Survived), ntree=100, importance=TRUE)
+imp_rf <- importance(rf, type=1)
+featureImportance_rf <- data.frame(Feature=row.names(imp_rf), Importance=imp_rf[,1])
+
+ggplot(featureImportance_rf, aes(x=reorder(Feature, Importance), y=Importance)) +
+     geom_bar(stat="identity", fill="#53cfff") +
+     coord_flip() + 
+     theme_light(base_size=20) +
+     xlab("") +
+     ylab("Importance") + 
+     ggtitle("Random Forest Feature Importance\n") +
+     theme(plot.title=element_text(size=18))
+```
+
+Using Classifier C5
+========================================================
+
+```{r, echo=FALSE}
+tm <- C5.0(x = extractFeatures(train), y = as.factor(train$Survived),
+control = C5.0Control(winnow = TRUE))
+
+featureImportance_tm <-C5imp(tm, metric = "usage", pct = FALSE)
+featureImportance_tm <- cbind(Feature = rownames(featureImportance_tm), featureImportance_tm)
+
+#featureImportance_tm <- arrange(featureImportance_tm,Feature=rownames(featureImportance_tm))
+#summary(tm)
+
+ggplot(featureImportance_tm, aes(x=reorder(Feature, Overall), y=Overall)) +
+     geom_bar(stat="identity", fill="#53cccf") +
+     coord_flip() + 
+     theme_light(base_size=20) +
+     xlab("") +
+     ylab("Importance") + 
+     ggtitle("C5.0 Feature Importance\n") +
+     theme(plot.title=element_text(size=18))
+```
+
+Conclusion
+========================================================
+We can have very different results between two algorithms of Machine Learning.
+
+Be careful to use the good algorithm and always parse and check your input data.
+
